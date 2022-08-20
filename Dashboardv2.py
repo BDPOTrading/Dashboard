@@ -394,6 +394,7 @@ if add_selectbox == "Dashboard":
     
     st.title('Market Dashboard')
     st.header('Enter a ticker, run market summary or view the latest headlines')
+    st.text('Limited to 1 request per minute (API Limit)')
 
     ticker = st.text_input('Enter a ticker', value='MSFT')
     option = st.selectbox(
