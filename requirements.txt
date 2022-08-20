@@ -1,0 +1,12 @@
+pandas
+numpy
+scipy
+matplotlib
+seaborn
+tabulate
+yfinance
+plotly
+quantstats
+pandas_datareader
+pandas_ta
+twelvedata
