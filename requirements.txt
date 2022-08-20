@@ -10,3 +10,4 @@ quantstats
 pandas_datareader
 pandas_ta
 twelvedata
+alpaca_trade_api
