@@ -8,6 +8,7 @@ from twelvedata import TDClient
 import plotly.express as px
 import requests
 import json
+import time
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
@@ -15,6 +16,7 @@ import datetime
 from dateutil.relativedelta import relativedelta
 from datetime import timedelta
 st.set_page_config(layout="wide")
+
 
 
 
@@ -35,6 +37,9 @@ from alpaca_trade_api.rest import REST, TimeFrame
 api = REST(ALPACA_API_KEY, ALPACA_SECRET_KEY, base_url=BASE_URL)
 
 today = (datetime.datetime.now((datetime.timezone.utc)) - relativedelta(minutes=16)).isoformat()
+
+maxRating = 20
+
 
 
 def chart_data(asset):
@@ -239,7 +244,6 @@ def incomeStatement(asset):
     URL = f'https://financialmodelingprep.com/api/v3/income-statement/{asset}?limit=240&apikey={fmpAPI}'
     data = requests.get(URL)
     data = data.json()
-    print(data)
 
     datel= []
     revenuel = []
@@ -258,28 +262,399 @@ def incomeStatement(asset):
         grossProfitl.append(grossProfit)
         netIncomel.append(netIncome)
 
-        df = pd.DataFrame()
+    df = pd.DataFrame()
 
-        df['Date'] = datel
-        df['Revenue'] = revenuel
-        df['Gross profit'] = grossProfitl
-        df['Net income'] = netIncomel
+    df['Date'] = datel
+    df['Revenue'] = revenuel
+    df['Gross profit'] = grossProfitl
+    df['Net income'] = netIncomel
+
+    df = df.set_index('Date')
 
     fig = go.Figure()
 
-    fig.add_trace(go.Scatter(x=df['Date'], y=df['Revenue'],
+    fig.add_trace(go.Scatter(x=df.index, y=df['Revenue'],
                         mode='lines+markers',
                         name='Revenue'))
-    fig.add_trace(go.Scatter(x=df['Date'], y=df['Gross profit'],
+    fig.add_trace(go.Scatter(x=df.index, y=df['Gross profit'],
                         mode='lines+markers',
                         name='Gross profit'))
-    fig.add_trace(go.Scatter(x=df['Date'], y=df['Net income'],
+    fig.add_trace(go.Scatter(x=df.index, y=df['Net income'],
                         mode='lines+markers',
                         name='Net income'))
 
 
-    print(df)
     return df, fig
+
+
+def bgSentiment(asset1):
+
+    URL1 = f'https://financialmodelingprep.com/api/v3/income-statement/{asset1}?limit=240&apikey={fmpAPI}'
+    URL2 = f'https://financialmodelingprep.com/api/v3/rating/{asset1}?apikey={fmpAPI}'
+    data = requests.get(URL1)
+    data = data.json()
+
+    scoreData = requests.get(URL2)
+    scoreData = scoreData.json()
+
+
+    datel= []
+    revenuel = []
+    grossProfitl = []
+    netIncomel = []
+    epsl = []
+    finalScore = 0
+
+    for value in scoreData:
+        score = value['rating']
+
+        if score == 'S+':
+            finalScore = 5
+        elif score =='S':
+            finalScore = 4
+        elif score =='S-':
+            finalScore = 3
+        elif score =='A+':
+            finalScore = 2
+        elif score =='A':
+            finalScore = 1
+        else:
+            finalScore = 0
+
+
+
+
+
+
+
+    for value in data:
+        date = value['date']
+        revenue = value['revenue']
+        grossProfit = value['grossProfit']
+        netIncome = value['netIncome']
+        eps = value['eps']
+
+
+        datel.append(date)
+        revenuel.append(revenue)
+        grossProfitl.append(grossProfit)
+        netIncomel.append(netIncome)
+        epsl.append(eps)
+
+    df = pd.DataFrame()
+
+    df['Date'] = datel
+    df['Revenue'] = revenuel
+    df['Gross profit'] = grossProfitl
+    df['Net income'] = netIncomel
+    df['EPS'] = epsl
+
+    df = df.set_index('Date')
+
+
+    incomeStatementDelta = df.iloc[::-1]
+    incomeStatementDelta = incomeStatementDelta.apply(pd.to_numeric)
+    incomeStatementDelta = incomeStatementDelta.pct_change()
+    incomeStatementDelta = incomeStatementDelta.apply(lambda x: x*100)
+    incomeStatementDelta = incomeStatementDelta.dropna()
+
+
+    revenueLength = len(incomeStatementDelta.loc[incomeStatementDelta['Revenue'] > 0])
+    gpLength = len(incomeStatementDelta.loc[incomeStatementDelta['Gross profit'] > 0])
+    netICLength = len(incomeStatementDelta.loc[incomeStatementDelta['Net income'] > 0])
+    epsLength = len(incomeStatementDelta.loc[incomeStatementDelta['EPS'] > 0])
+
+
+
+    finalRating = (revenueLength + gpLength + netICLength + epsLength + finalScore)
+
+
+    closePrice = finalRating
+    highPrice = maxRating
+
+    confidenceLevel = 0.8
+
+    topRange = highPrice
+    midRange = highPrice*confidenceLevel
+    lowRange = 0
+
+    color = 'crimson'
+
+    if closePrice > midRange:
+        color = 'forestgreen'
+    if closePrice == midRange:
+        color = 'darkslateblue'
+    
+
+    fig = go.Figure(go.Indicator(
+        mode = "gauge+number",
+        value = closePrice,
+        gauge={"axis": {"range": [lowRange, topRange]},
+            'steps' : [
+                    {'range': [lowRange, topRange], 'color': "lightgray"}],
+            'bar': {'color': color},
+
+            'threshold': {
+                'line': {'color': "red", 'width': 4},
+                'thickness': 0.75,
+                'value': midRange
+                }
+            
+
+            
+            
+            },
+        title = {'text': "Investment confidence"},
+        domain = {'x': [0, 1], 'y': [0, 1]}
+    ))
+
+    return fig
+
+def bgSentiment2(asset1):
+
+    URL1 = f'https://financialmodelingprep.com/api/v3/income-statement/{asset1}?limit=240&apikey={fmpAPI}'
+    URL2 = f'https://financialmodelingprep.com/api/v3/rating/{asset1}?apikey={fmpAPI}'
+    data = requests.get(URL1)
+    data = data.json()
+
+    scoreData = requests.get(URL2)
+    scoreData = scoreData.json()
+
+
+    datel= []
+    revenuel = []
+    grossProfitl = []
+    netIncomel = []
+    epsl = []
+    finalScore = 0
+
+    for value in scoreData:
+        score = value['rating']
+
+        if score == 'S+':
+            finalScore = 5
+        elif score =='S':
+            finalScore = 4
+        elif score =='S-':
+            finalScore = 3
+        elif score =='A+':
+            finalScore = 2
+        elif score =='A':
+            finalScore = 1
+        else:
+            finalScore = 0
+
+
+
+
+
+
+
+    for value in data:
+        date = value['date']
+        revenue = value['revenue']
+        grossProfit = value['grossProfit']
+        netIncome = value['netIncome']
+        eps = value['eps']
+
+
+        datel.append(date)
+        revenuel.append(revenue)
+        grossProfitl.append(grossProfit)
+        netIncomel.append(netIncome)
+        epsl.append(eps)
+
+    df = pd.DataFrame()
+
+    df['Date'] = datel
+    df['Revenue'] = revenuel
+    df['Gross profit'] = grossProfitl
+    df['Net income'] = netIncomel
+    df['EPS'] = epsl
+
+    df = df.set_index('Date')
+
+
+    incomeStatementDelta = df.iloc[::-1]
+    incomeStatementDelta = incomeStatementDelta.apply(pd.to_numeric)
+    incomeStatementDelta = incomeStatementDelta.pct_change()
+    incomeStatementDelta = incomeStatementDelta.apply(lambda x: x*100)
+    incomeStatementDelta = incomeStatementDelta.dropna()
+
+
+    revenueLength = len(incomeStatementDelta.loc[incomeStatementDelta['Revenue'] > 0])
+    gpLength = len(incomeStatementDelta.loc[incomeStatementDelta['Gross profit'] > 0])
+    netICLength = len(incomeStatementDelta.loc[incomeStatementDelta['Net income'] > 0])
+    epsLength = len(incomeStatementDelta.loc[incomeStatementDelta['EPS'] > 0])
+
+
+
+    finalRating = (revenueLength + gpLength + netICLength + epsLength + finalScore)
+
+
+    closePrice = finalRating
+    highPrice = maxRating
+
+    confidenceLevel = 0.8
+
+    topRange = highPrice
+    midRange = highPrice*confidenceLevel
+    lowRange = 0
+
+    color = 'crimson'
+
+    if closePrice > midRange:
+        color = 'forestgreen'
+    if closePrice == midRange:
+        color = 'darkslateblue'
+    
+
+    fig = go.Figure(go.Indicator(
+        mode = "gauge+number",
+        value = closePrice,
+        gauge={"axis": {"range": [lowRange, topRange]},
+            'steps' : [
+                    {'range': [lowRange, topRange], 'color': "lightgray"}],
+            'bar': {'color': color},
+
+            'threshold': {
+                'line': {'color': "red", 'width': 4},
+                'thickness': 0.75,
+                'value': midRange
+                }
+            
+
+            
+            
+            },
+        title = {'text': "Investment confidence"},
+        domain = {'x': [0, 1], 'y': [0, 1]}
+    ))
+
+    return fig
+
+def bgSentiment3(asset1):
+
+    URL1 = f'https://financialmodelingprep.com/api/v3/income-statement/{asset1}?limit=240&apikey={fmpAPI}'
+    URL2 = f'https://financialmodelingprep.com/api/v3/rating/{asset1}?apikey={fmpAPI}'
+    data = requests.get(URL1)
+    data = data.json()
+
+    scoreData = requests.get(URL2)
+    scoreData = scoreData.json()
+
+
+    datel= []
+    revenuel = []
+    grossProfitl = []
+    netIncomel = []
+    epsl = []
+    finalScore = 0
+
+    for value in scoreData:
+        score = value['rating']
+
+        if score == 'S+':
+            finalScore = 5
+        elif score =='S':
+            finalScore = 4
+        elif score =='S-':
+            finalScore = 3
+        elif score =='A+':
+            finalScore = 2
+        elif score =='A':
+            finalScore = 1
+        else:
+            finalScore = 0
+
+
+
+
+
+
+
+    for value in data:
+        date = value['date']
+        revenue = value['revenue']
+        grossProfit = value['grossProfit']
+        netIncome = value['netIncome']
+        eps = value['eps']
+
+
+        datel.append(date)
+        revenuel.append(revenue)
+        grossProfitl.append(grossProfit)
+        netIncomel.append(netIncome)
+        epsl.append(eps)
+
+    df = pd.DataFrame()
+
+    df['Date'] = datel
+    df['Revenue'] = revenuel
+    df['Gross profit'] = grossProfitl
+    df['Net income'] = netIncomel
+    df['EPS'] = epsl
+
+    df = df.set_index('Date')
+
+
+    incomeStatementDelta = df.iloc[::-1]
+    incomeStatementDelta = incomeStatementDelta.apply(pd.to_numeric)
+    incomeStatementDelta = incomeStatementDelta.pct_change()
+    incomeStatementDelta = incomeStatementDelta.apply(lambda x: x*100)
+    incomeStatementDelta = incomeStatementDelta.dropna()
+
+
+    revenueLength = len(incomeStatementDelta.loc[incomeStatementDelta['Revenue'] > 0])
+    gpLength = len(incomeStatementDelta.loc[incomeStatementDelta['Gross profit'] > 0])
+    netICLength = len(incomeStatementDelta.loc[incomeStatementDelta['Net income'] > 0])
+    epsLength = len(incomeStatementDelta.loc[incomeStatementDelta['EPS'] > 0])
+
+
+
+    finalRating = (revenueLength + gpLength + netICLength + epsLength + finalScore)
+
+
+    closePrice = finalRating
+    highPrice = maxRating
+
+    confidenceLevel = 0.8
+
+    topRange = highPrice
+    midRange = highPrice*confidenceLevel
+    lowRange = 0
+
+    color = 'crimson'
+
+    if closePrice > midRange:
+        color = 'forestgreen'
+    if closePrice == midRange:
+        color = 'darkslateblue'
+    
+
+    fig = go.Figure(go.Indicator(
+        mode = "gauge+number",
+        value = closePrice,
+        gauge={"axis": {"range": [lowRange, topRange]},
+            'steps' : [
+                    {'range': [lowRange, topRange], 'color': "lightgray"}],
+            'bar': {'color': color},
+
+            'threshold': {
+                'line': {'color': "red", 'width': 4},
+                'thickness': 0.75,
+                'value': midRange
+                }
+            
+
+            
+            
+            },
+        title = {'text': "Investment confidence"},
+        domain = {'x': [0, 1], 'y': [0, 1]}
+    ))
+
+    return fig
 
 
 
@@ -300,7 +675,6 @@ def marketNews():
         datel.append(date)
 
     return titleL, datel
-
 
 
 def stockComparision(asset1, asset2, asset3,starttime):
@@ -373,9 +747,17 @@ add_selectbox = st.sidebar.selectbox(
 if add_selectbox == "Comparision":
     st.title('Stock price comparision dashboard')
     st.subheader('Run a comparision')
-    ticker1 = st.text_input('Input ticker one', value='MSFT')
-    ticker2 = st.text_input('Input ticker two', value='AMZN')
-    ticker3 = st.text_input('Input ticker three', value='AAPL')
+
+    with st.container():
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            ticker1 = st.text_input('Input ticker one', value='MSFT')
+
+        with col2:
+            ticker2 = st.text_input('Input ticker two', value='AMZN')
+
+        with col3:
+            ticker3 = st.text_input('Input ticker three', value='AAPL')
 
 
 
@@ -389,7 +771,13 @@ if add_selectbox == "Comparision":
 
     if runComp:
         st.success('running comparision')
+        
         stockOneDF, stockTwoDF, stockThreeDF ,tickerOneChart, tickerTwoChart,tickerThreeChart ,combinedGraph = stockComparision(ticker1, ticker2, ticker3, start_time)
+        ticker1ConfidenceGraph = bgSentiment(ticker1)
+        ticker2ConfidenceGraph = bgSentiment2(ticker2)
+        ticker3ConfidenceGraph = bgSentiment3(ticker3)
+
+
 
         st.plotly_chart(combinedGraph, use_container_width=True)
 
@@ -404,10 +792,8 @@ if add_selectbox == "Comparision":
             movement = round((((currentPrice - StartPrice) / StartPrice)*100),2)
 
             st.metric(f'Share price & Movement since start date', currentPrice, delta=f'{movement}%')
-
+            st.plotly_chart(ticker1ConfidenceGraph, use_container_width=True)
             st.plotly_chart(tickerOneChart, use_container_width=True)
-            st.subheader('Raw data')
-            st.table(stockOneDF)
 
 
 
@@ -421,12 +807,11 @@ if add_selectbox == "Comparision":
             movement = round((((currentPrice - StartPrice) / StartPrice)*100),2)
 
             st.metric(f'Share price & Movement since start date', currentPrice, delta=f'{movement}%')
-
+            st.plotly_chart(ticker2ConfidenceGraph, use_container_width=True)
             st.plotly_chart(tickerTwoChart, use_container_width=True)
 
 
-            st.subheader('Raw data')
-            st.table(stockTwoDF)
+
 
 
         with col3:
@@ -437,10 +822,9 @@ if add_selectbox == "Comparision":
             movement = round((((currentPrice - StartPrice) / StartPrice)*100),2)
 
             st.metric(f'Share price & Movement since start date', currentPrice, delta=f'{movement}%')
-
+            st.plotly_chart(ticker3ConfidenceGraph, use_container_width=True)
             st.plotly_chart(tickerThreeChart, use_container_width=True)
-            st.subheader('Raw data')
-            st.table(stockThreeDF)
+
 
 
 
