@@ -388,6 +388,7 @@ if add_selectbox == "Comparision":
     runComp = st.button('Run comparision')
 
     if runComp:
+        st.success('running comparision')
         stockOneDF, stockTwoDF, stockThreeDF ,tickerOneChart, tickerTwoChart,tickerThreeChart ,combinedGraph = stockComparision(ticker1, ticker2, ticker3, start_time)
 
         st.plotly_chart(combinedGraph, use_container_width=True)
