@@ -11,7 +11,6 @@ import json
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
-from st_on_hover_tabs import on_hover_tabs
 import datetime
 from dateutil.relativedelta import relativedelta
 from datetime import timedelta
